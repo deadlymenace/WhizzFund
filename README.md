@@ -1,6 +1,6 @@
 # Whizz Fund
 
-A decentralized fund management platform built on Solana. Whizz Fund enables users to invest in managed  fund pools and allows fund managers to create, operate, and grow their own investment strategies on-chain. Empower your very own onchain wizard to allocate to funds to all tradeable assets available on Solana
+A decentralized fund management platform built on Solana. Whizz Fund enables users to invest in managed  fund pools and allows fund managers to create, operate, and grow their own investment strategies on-chain. Empower your very own onchain wizard to allocate to funds to all tradeable assets available on Solana.
 
 ## Features
 
