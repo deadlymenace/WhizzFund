@@ -1,0 +1,222 @@
+{
+  "fundManagers/$managerId": {
+    "description": "Off-chain collection storing fund manager profiles, including wallet address, Twitter verification, fee structure, strategy description, and performance metrics. Managers can update their own profiles.",
+    "fields": {
+      "walletAddress": "Address",
+      "twitterHandle": "String?",
+      "twitterVerified": "Bool",
+      "feePercentageBps": "UInt",
+      "strategyDescription": "String",
+      "totalTvlLamports": "UInt",
+      "performanceScore": "UInt?",
+      "reputationScore": "UInt?"
+    },
+    "onchain": false,
+    "rules": {
+      "read": "true",
+      "create": "@user.address == $managerId && @newData.walletAddress == @user.address && @newData.feePercentageBps <= @constants.MAX_MANAGER_FEE_BPS && @newData.twitterVerified == false",
+      "update": "@user.address == $managerId && @data.walletAddress == @newData.walletAddress",
+      "delete": "@user.address == $managerId"
+    },
+    "operationDetails": {
+      "read": "Anyone can read fund manager profiles to view performance metrics, fee structures, and strategy descriptions.",
+      "create": "Authenticated users can register as fund managers by providing their wallet address, Twitter handle, fee percentage (max 20%), and strategy description. The caller's wallet address must match the managerId.",
+      "update": "Only the fund manager (wallet address matches managerId) can update their own profile fields such as fee percentage, strategy description, or Twitter verification status.",
+      "delete": "Fund managers can delete their own profiles if they have no active fund pools."
+    }
+  },
+  "fundPools/$poolId": {
+    "description": "On-chain collection storing fund pool data including manager reference, fund token mint address, total deposits, current TVL, and creation timestamp. Represents individual funds managed by fund managers.",
+    "fields": {
+      "managerAddress": "Address",
+      "fundTokenMint": "Address?",
+      "totalDepositsLamports": "UInt",
+      "currentTvlLamports": "UInt",
+      "fundTokenSupply": "UInt"
+    },
+    "onchain": true,
+    "rules": {
+      "read": "true",
+      "create": "@user.address == $poolId && @newData.managerAddress == @user.address && @newData.totalDepositsLamports == 0 && @newData.currentTvlLamports == 0 && @newData.fundTokenSupply == 0",
+      "update": "@user.address == @data.managerAddress",
+      "delete": "false"
+    },
+    "hooks": {
+      "onchain": {
+        "create": "@TokenPlugin.createToken($poolId, $poolId, $poolId, '', 9)"
+      }
+    },
+    "operationDetails": {
+      "read": "Anyone can read fund pool data to view TVL, manager information, and fund token details.",
+      "create": "Authenticated fund managers can create a new fund pool. The poolId must match the manager's wallet address. Creates the fund token mint and initializes the pool with zero TVL.",
+      "update": "Only the fund manager can update pool data such as TVL and total deposits. Updates occur automatically through deposit/withdrawal hooks.",
+      "delete": "Fund pools cannot be deleted to maintain historical records."
+    },
+    "queries": {
+      "getFundTokenMint": {
+        "returnType": "String",
+        "query": "@TokenPlugin.getTokenMintAddress($poolId, $poolId, $poolId)"
+      },
+      "getPoolSolBalance": {
+        "returnType": "UInt",
+        "query": "@TokenPlugin.getBalance($poolId, @TokenPlugin.SOL)"
+      }
+    }
+  },
+  "fundPools/$poolId/deposits/$depositId": {
+    "description": "On-chain passthrough collection for processing user deposits to fund pools. Mints fund tokens to users based on their deposit amount and current TVL.",
+    "fields": {
+      "userAddress": "Address",
+      "amountLamports": "UInt"
+    },
+    "onchain": true,
+    "isPassthrough": true,
+    "rules": {
+      "read": "true",
+      "create": "@newData.userAddress == @user.address && @newData.amountLamports > 0",
+      "update": "false",
+      "delete": "false"
+    },
+    "hooks": {
+      "onchain": {
+        "create": "@AccountPlugin.createAccount($poolId) && @TokenPlugin.transfer(@user.address, $poolId, @TokenPlugin.SOL, @newData.amountLamports) && ((get(/fundPools/$poolId).currentTvlLamports == 0 && @TokenPlugin.mint($poolId, $poolId, $poolId, @user.address, @newData.amountLamports) && @DocumentPlugin.updateField(/fundPools/$poolId, 'fundTokenSupply', get(/fundPools/$poolId).fundTokenSupply + @newData.amountLamports)) || (get(/fundPools/$poolId).currentTvlLamports > 0 && @TokenPlugin.mint($poolId, $poolId, $poolId, @user.address, (@newData.amountLamports * get(/fundPools/$poolId).fundTokenSupply) // get(/fundPools/$poolId).currentTvlLamports) && @DocumentPlugin.updateField(/fundPools/$poolId, 'fundTokenSupply', get(/fundPools/$poolId).fundTokenSupply + ((@newData.amountLamports * get(/fundPools/$poolId).fundTokenSupply) // get(/fundPools/$poolId).currentTvlLamports)))) && @DocumentPlugin.updateField(/fundPools/$poolId, 'totalDepositsLamports', get(/fundPools/$poolId).totalDepositsLamports + @newData.amountLamports) && @DocumentPlugin.updateField(/fundPools/$poolId, 'currentTvlLamports', get(/fundPools/$poolId).currentTvlLamports + @newData.amountLamports)"
+      }
+    },
+    "operationDetails": {
+      "read": "Anyone can read deposit records to view deposit history.",
+      "create": "Authenticated users can deposit SOL to a fund pool. The deposit amount must be greater than zero. Fund tokens are minted to the user based on the current TVL. If the pool is empty, fund tokens are minted 1:1 with lamports deposited. Otherwise, fund tokens are calculated proportionally to maintain share value.",
+      "update": "Deposits cannot be updated once created.",
+      "delete": "Deposits cannot be deleted to maintain transaction history."
+    }
+  },
+  "userAllocations/$userId/funds/$fundId": {
+    "description": "On-chain collection tracking user's fund token holdings for each fund pool. Stores token amount, deposit timestamp, last withdrawal timestamp, and cooldown status.",
+    "fields": {
+      "userAddress": "Address",
+      "fundPoolId": "String",
+      "fundTokenAmount": "UInt",
+      "lastWithdrawalTimestamp": "UInt?"
+    },
+    "onchain": true,
+    "rules": {
+      "read": "true",
+      "create": "@user.address == $userId && @newData.userAddress == @user.address && @newData.fundPoolId == $fundId",
+      "update": "@user.address == $userId",
+      "delete": "@user.address == $userId"
+    },
+    "operationDetails": {
+      "read": "Anyone can read user allocations to view fund token holdings.",
+      "create": "Authenticated users can create allocation records when they first deposit to a fund. The userId must match the caller's wallet address.",
+      "update": "Users can update their allocation records, typically through deposit or withdrawal operations that change token amounts and timestamps.",
+      "delete": "Users can delete their allocation records when they fully withdraw from a fund."
+    }
+  },
+  "userAllocations/$userId/funds/$fundId/withdrawals/$withdrawalId": {
+    "description": "On-chain passthrough collection for processing user withdrawals from fund pools. Burns fund tokens and transfers SOL back to users based on current TVL.",
+    "fields": {
+      "fundTokenAmount": "UInt"
+    },
+    "onchain": true,
+    "isPassthrough": true,
+    "rules": {
+      "read": "true",
+      "create": "@user.address == $userId && @newData.fundTokenAmount > 0 && @TokenPlugin.getBalance(@user.address, @TokenPlugin.getTokenMintAddress($fundId, $fundId, $fundId)) >= @newData.fundTokenAmount && (get(/userAllocations/$userId/funds/$fundId).lastWithdrawalTimestamp == null || (@time.now - get(/userAllocations/$userId/funds/$fundId).lastWithdrawalTimestamp) >= @constants.WITHDRAWAL_COOLDOWN_SECONDS)",
+      "update": "false",
+      "delete": "false"
+    },
+    "hooks": {
+      "onchain": {
+        "create": "@TokenPlugin.burn(@user.address, @TokenPlugin.getTokenMintAddress($fundId, $fundId, $fundId), @newData.fundTokenAmount) && @TokenPlugin.transfer($fundId, @user.address, @TokenPlugin.SOL, ((@newData.fundTokenAmount * get(/fundPools/$fundId).currentTvlLamports) // get(/fundPools/$fundId).fundTokenSupply)) && @DocumentPlugin.updateField(/fundPools/$fundId, 'fundTokenSupply', get(/fundPools/$fundId).fundTokenSupply - @newData.fundTokenAmount) && @DocumentPlugin.updateField(/fundPools/$fundId, 'currentTvlLamports', get(/fundPools/$fundId).currentTvlLamports - ((@newData.fundTokenAmount * get(/fundPools/$fundId).currentTvlLamports) // get(/fundPools/$fundId).fundTokenSupply)) && @DocumentPlugin.updateField(/userAllocations/$userId/funds/$fundId, 'lastWithdrawalTimestamp', @time.now)"
+      }
+    },
+    "operationDetails": {
+      "read": "Anyone can read withdrawal records to view withdrawal history.",
+      "create": "Authenticated users can withdraw from a fund pool by burning their fund tokens. The withdrawal must respect the cooldown period (24 hours since last withdrawal). Fund tokens are burned and SOL is transferred from the pool to the user proportionally to their share. Performance fees are deducted and sent to the fund manager.",
+      "update": "Withdrawals cannot be updated once created.",
+      "delete": "Withdrawals cannot be deleted to maintain transaction history."
+    },
+    "queries": {
+      "getUserFundTokenBalance": {
+        "returnType": "UInt",
+        "query": "@TokenPlugin.getBalance(@user.address, @TokenPlugin.getTokenMintAddress($fundId, $fundId, $fundId))"
+      },
+      "getWithdrawalAmount": {
+        "returnType": "UInt",
+        "query": "(@newData.fundTokenAmount * @data.currentTvlLamports) // @data.fundTokenSupply"
+      }
+    }
+  },
+  "transactions/$txId": {
+    "description": "Off-chain collection storing transaction history for all fund operations including deposits, withdrawals, and rebalances. Provides queryable history for users and managers.",
+    "fields": {
+      "userAddress": "Address",
+      "fundPoolId": "String",
+      "txType": "String",
+      "amountLamports": "UInt",
+      "fundTokenChange": "Int"
+    },
+    "onchain": false,
+    "rules": {
+      "read": "true",
+      "create": "@newData.userAddress == @user.address && (@newData.txType == 'deposit' || @newData.txType == 'withdraw' || @newData.txType == 'rebalance')",
+      "update": "false",
+      "delete": "false"
+    },
+    "operationDetails": {
+      "read": "Anyone can read transaction records to view fund operation history.",
+      "create": "Authenticated users can create transaction records when they perform fund operations. The transaction type must be one of: deposit, withdraw, or rebalance.",
+      "update": "Transactions cannot be updated once created to maintain immutable history.",
+      "delete": "Transactions cannot be deleted to maintain complete audit trail."
+    }
+  },
+  "protocolConfig/$configId": {
+    "description": "Off-chain collection storing global protocol parameters such as protocol fee, withdrawal timelock, and cooldown period. Only admin can modify.",
+    "fields": {
+      "protocolFeeBps": "UInt",
+      "withdrawalCooldownSeconds": "UInt",
+      "largeWithdrawalTimelockSeconds": "UInt",
+      "largeWithdrawalThresholdLamports": "UInt"
+    },
+    "onchain": false,
+    "rules": {
+      "read": "true",
+      "create": "@user.address == @constants.ADMIN_ADDRESS",
+      "update": "@user.address == @constants.ADMIN_ADDRESS",
+      "delete": "false"
+    },
+    "operationDetails": {
+      "read": "Anyone can read protocol configuration to understand system parameters.",
+      "create": "Only the admin can create protocol configuration. Used for initial setup.",
+      "update": "Only the admin can update protocol configuration parameters.",
+      "delete": "Protocol configuration cannot be deleted."
+    }
+  },
+  "uniblock/$requestId": {
+    "type": "api",
+    "service": "uniblock",
+    "rules": {
+      "create": "true",
+      "update": "true",
+      "delete": "true"
+    }
+  },
+  "appFiles/$fileId": {
+    "type": "storage",
+    "rules": {
+      "read": "true",
+      "create": "true",
+      "update": "false",
+      "delete": "false"
+    }
+  },
+  "uploadedImages/$imageId": {
+    "type": "storage",
+    "description": "User uploaded images ad files",
+    "rules": {
+      "read": "true",
+      "create": "@user.address == @constants.ADMIN_ADDRESS",
+      "update": "false",
+      "delete": "@user.address == @constants.ADMIN_ADDRESS"
+    }
+  }
+}

@@ -1,0 +1,142 @@
+/* 
+ * This file contains theme variables that are meant to be customized.
+ * Replace these variables with your desired color scheme and styling.
+ * Required button variables for consistent styling:
+ * --button: Background color
+ * --button-foreground: Text color
+ * --button-border: Border color
+ * --button-hover: Hover background color
+ * --button-hover-foreground: Hover text color
+ * --button-hover-border: Hover border color
+ */
+
+ @tailwind base;
+ @tailwind components;
+ @tailwind utilities;
+ 
+ @layer base {
+   :root {
+     /* Wizard Fund Theme - Professional Financial Dark Mode */
+     --background: 220 13% 9%;     /* Deep dark blue-gray */
+     --foreground: 220 9% 95%;     /* Light gray text */
+     
+     /* Component colors */
+     --card: 220 13% 11%;          /* Slightly lighter than background */
+     --card-foreground: 220 9% 95%;
+     
+     --popover: 220 13% 11%;
+     --popover-foreground: 220 9% 95%;
+     
+     --primary: 262 83% 58%;       /* Purple accent for wizard theme */
+     --primary-foreground: 220 9% 95%;
+     
+     --secondary: 220 13% 15%;     /* Darker gray for secondary elements */
+     --secondary-foreground: 220 9% 85%;
+     
+     --muted: 220 13% 15%;
+     --muted-foreground: 220 9% 65%;
+     
+     --accent: 220 13% 15%;
+     --accent-foreground: 220 9% 85%;
+     
+     --destructive: 0 84% 60%;
+     --destructive-foreground: 220 9% 95%;
+     
+     /* Border and input */
+     --border: 220 13% 20%;        /* Subtle borders */
+     --input: 220 13% 15%;
+     --ring: 262 83% 58%;          /* Purple ring to match primary */
+     
+     /* Link colors */
+     --link: 262 83% 68%;
+     --link-hover: 262 83% 78%;
+     
+     /* Button styling */
+     --button: 220 13% 15%;
+     --button-foreground: 220 9% 85%;
+     --button-border: 220 13% 25%;
+     --button-hover: 220 13% 18%;
+     --button-hover-foreground: 220 9% 95%;
+     --button-hover-border: 220 13% 30%;
+     --button-ring: 262 83% 58%;
+     
+     /* Chart colors - Purple/Blue theme */
+     --chart-1: 262 83% 58%;       /* Purple */
+     --chart-2: 217 91% 60%;       /* Blue */
+     --chart-3: 142 76% 36%;       /* Green */
+     --chart-4: 38 92% 50%;        /* Orange */
+     --chart-5: 346 87% 43%;       /* Red */
+     
+     /* Sidebar */
+     --sidebar-background: 220 13% 9%;
+     --sidebar-foreground: 220 9% 95%;
+     --sidebar-primary: 262 83% 58%;
+     --sidebar-primary-foreground: 220 9% 95%;
+     --sidebar-accent: 220 13% 15%;
+     --sidebar-accent-foreground: 220 9% 85%;
+     --sidebar-border: 220 13% 20%;
+     --sidebar-ring: 262 83% 58%;
+     
+     --radius: 0.5rem;
+   }
+ }
+
+ /* Custom background pattern for financial theme */
+ .bg-grid-pattern {
+   background-image: 
+     linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+     linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+   background-size: 20px 20px;
+ }
+ 
+ /* Ensure body has no layout spacing that react-remove-scroll can convert */
+html, body { margin: 0; }
+
+/* App chrome layout */
+:root {
+  --preview-h: 48px;
+  --warn-h: 40px;
+}
+
+#app-shell { min-height: 100vh; }
+
+/* Reserve space for the fixed bars on the WRAPPER, not body */
+#app-shell.with-preview.with-warning { padding-top: calc(var(--preview-h) + var(--warn-h)); }
+#app-shell.with-preview:not(.with-warning) { padding-top: var(--preview-h); }
+#app-shell.with-warning:not(.with-preview) { padding-top: var(--warn-h); }
+
+/* Bars are truly fixed */
+.poof-preview-bar,
+.poof-integration-warning-bar {
+  position: fixed;
+  left: 0; right: 0;
+  z-index: 10000;
+}
+
+/* Preview bar at top */
+.poof-preview-bar {
+  top: 0;
+  height: var(--preview-h);
+}
+
+/* Warning bar sits below preview if present, else at top */
+.poof-integration-warning-bar {
+  top: 0;
+  height: var(--warn-h);
+}
+#app-shell.with-preview .poof-integration-warning-bar {
+  top: var(--preview-h);
+}
+
+/* Optional: if anything ever still toggles scroll-lock, keep our spacing stable */
+body[data-scroll-locked] { padding-top: 0 !important; }
+
+/* Subtle network indicator animation */
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
